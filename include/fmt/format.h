@@ -2793,16 +2793,44 @@ FMT_CONSTEXPR const Char* parse_replacement_field(const Char* begin,
   return begin + 1;
 }
 
+template <typename Char>
+FMT_INLINE const Char* incr(const Char*& p)
+{
+#ifdef FMT_ANSI
+    auto p1 = p;
+    ++p;
+    if ((uint8_t)*p1 >= 128) ++p;
+    return p1;
+#endif
+    return p++;
+}
+
+template <typename Char>
+FMT_INLINE const Char* incl(const Char*& p)
+{
+#ifdef FMT_ANSI
+    auto p1 = p;
+    ++p;
+    if ((uint8_t)*p1 >= 128) ++p;
+    return p;
+#endif
+    return ++p;
+}
+
 template <bool IS_CONSTEXPR, typename Char, typename Handler>
 FMT_CONSTEXPR_DECL FMT_INLINE void parse_format_string(
     basic_string_view<Char> format_str, Handler&& handler) {
   auto begin = format_str.data();
   auto end = begin + format_str.size();
-  if (end - begin < 32) {
+  auto ansi = 0;
+#ifdef FMT_ANSI
+  ansi = 1;
+#endif
+  if (ansi || end - begin < 32) {
     // Use a simple loop instead of memchr for small strings.
     const Char* p = begin;
     while (p != end) {
-      auto c = *p++;
+      auto c = *incr(p);
       if (c == '{') {
         handler.on_text(begin, p - 1);
         begin = p = parse_replacement_field(p - 1, end, handler);
@@ -2810,7 +2838,7 @@ FMT_CONSTEXPR_DECL FMT_INLINE void parse_format_string(
         if (p == end || *p != '}')
           return handler.on_error("unmatched '}' in format string");
         handler.on_text(begin, p);
-        begin = ++p;
+        begin = incl(p);
       }
     }
     handler.on_text(begin, end);
